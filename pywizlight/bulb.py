@@ -338,8 +338,9 @@ class wizlight:
             asyncio.ensure_future(self.sendUDPMessage(PushManager().get().register_msg))
             self.loop.call_later(PUSH_KEEP_ALIVE_INTERVAL, self.register)
 
-    async def _enable_push(self) -> None:
+    async def start_push(self, callback: Callable) -> None:
         _LOGGER.debug("Enabling push updates for %s", self.mac)
+        self.push_callback = callback
         push_manager = PushManager().get()
         self.push_cancel = push_manager.register(self.mac, self._on_push)
         if await push_manager.start(self.ip):
