@@ -495,7 +495,6 @@ class wizlight:
         resp = await self.getBulbConfig()
         if resp is not None and "result" in resp and self.mac is None:
             self.mac = PilotParser(resp["result"]).get_mac()
-            await self._enable_push()
         else:
             self.mac = None
         return self.mac
