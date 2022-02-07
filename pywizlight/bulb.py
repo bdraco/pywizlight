@@ -32,6 +32,7 @@ _IGNORE_KEYS = {"src", "mqttCd", "ts", "rssi"}
 
 
 def states_match(old: dict[str, Any], new: dict[str, Any]) -> bool:
+    """Check if states match except for keys we do not want to callback on."""
     for key, val in new.items():
         if old.get(key) != val and key not in _IGNORE_KEYS:
             return False
