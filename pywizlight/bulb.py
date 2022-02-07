@@ -334,11 +334,13 @@ class wizlight:
         self.protocol = cast(WizProtocol, transport_proto[1])
 
     def register(self) -> None:
+        """Call register to keep alive push updates."""
         if self.push_running:
             asyncio.ensure_future(self.sendUDPMessage(PushManager().get().register_msg))
             self.loop.call_later(PUSH_KEEP_ALIVE_INTERVAL, self.register)
 
     async def start_push(self, callback: Callable) -> None:
+        """Start periodic register calls to get push updates via syncPilot."""
         _LOGGER.debug("Enabling push updates for %s", self.mac)
         self.push_callback = callback
         push_manager = PushManager().get()
@@ -348,7 +350,7 @@ class wizlight:
             self.register()
 
     def _on_push(self, resp: dict, addr: Tuple[str, int]) -> None:
-        """Handle a response from the device."""
+        """Handle a syncPilot from the device."""
         self.last_push = time.monotonic()
         old_state = self.state.pilotResult if self.state else None
         new_state = resp["params"]

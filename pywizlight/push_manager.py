@@ -69,6 +69,7 @@ class PushManager:
         self.register_msg: Optional[str] = None
 
     async def start(self, target_ip: str) -> bool:
+        """Start listening for push updates on LISTEN_PORT if we are not already listening."""
         async with self.lock:
             if self.push_running:
                 return True
@@ -108,6 +109,7 @@ class PushManager:
             return True
 
     async def stop_if_no_subs(self) -> None:
+        """Stop push updates if there are no subscriptions."""
         async with self.lock:
             if not self.push_running or self.subscriptions:
                 return
@@ -118,6 +120,7 @@ class PushManager:
                 self.push_protocol = None
 
     def register(self, mac: str, callback: Callable) -> Callable:
+        """Register the subscription for a given mac address."""
         self.subscriptions[mac] = callback
 
         def _cancel():
