@@ -4,10 +4,11 @@ import json
 import logging
 import random
 import socket
+from dataclasses import dataclass
 from typing import Callable, Dict, Optional, Tuple, cast
 
 from pywizlight.protocol import WizProtocol
-from pywizlight.utils import to_wiz_json
+from pywizlight.utils import to_wiz_json, create_udp_socket
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -15,12 +16,10 @@ RESPOND_PORT = 38899
 LISTEN_PORT = 38900
 
 
-def create_udp_socket(listen_port: int) -> socket.socket:
-    """Create a udp socket used for communicating with the device."""
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(("", listen_port))
-    sock.setblocking(False)
-    return sock
+@dataclass
+class PushSubscription:
+    callback: Callable[[Dict, Tuple[str, int]], None]
+    ack_message: bytes
 
 
 def generate_mac():
@@ -65,7 +64,7 @@ class PushManager:
         self.push_running = False
         self.lock = asyncio.Lock()
         self.loop = asyncio.get_event_loop()
-        self.subscriptions: Dict[str, Callable] = {}
+        self.subscriptions: Dict[str, PushSubscription] = {}
         self.register_msg: Optional[str] = None
 
     async def start(self, target_ip: str) -> bool:
@@ -121,11 +120,14 @@ class PushManager:
 
     def register(self, mac: str, callback: Callable) -> Callable:
         """Register the subscription for a given mac address."""
-        self.subscriptions[mac] = callback
+        self.subscriptions[mac] = PushSubscription(
+            callback,
+            to_wiz_json({"method": "syncPilot", "result": {"mac": mac}}).encode(),
+        )
 
         def _cancel():
             del self.subscriptions[mac]
-            asyncio.ensure_future(self.stop_if_no_subs())
+            asyncio.create_task(self.stop_if_no_subs())
 
         return _cancel
 
@@ -139,12 +141,11 @@ class PushManager:
             return
         method = resp.get("method")
         mac = resp.get("params", {}).get("mac")
-        if method != "syncPilot":
+        if method != "syncPilot" or mac not in self.subscriptions:
             return
+        subscription = self.subscriptions[mac]
         if self.push_transport:
-            data = to_wiz_json({"method": "syncPilot", "result": {"mac": mac}}).encode()
+            data = subscription.ack_message
             _LOGGER.debug("%s: PUSH ACK >> %s", (addr[0], RESPOND_PORT), data)
             self.push_transport.sendto(data, (addr[0], RESPOND_PORT))
-        subscription = self.subscriptions.get(mac)
-        if subscription:
-            subscription(resp, addr)
+        subscription.callback(resp, addr)
